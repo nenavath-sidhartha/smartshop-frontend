@@ -2,7 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 
 // Haversine formula to calculate approximate straight-line distance in kilometers
 const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  if (lat1 === null || lat1 === undefined || lon1 === null || lon1 === undefined ||
+      lat2 === null || lat2 === undefined || lon2 === null || lon2 === undefined) {
+    return null;
+  }
   const R = 6371; // Earth radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -40,12 +43,25 @@ const GoogleMapTracker = ({
   const [loadError, setLoadError] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
 
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  const isKeyConfigured = apiKey && apiKey !== 'YOUR_GOOGLE_MAPS_API_KEY_HERE' && apiKey.trim().length > 10;
+  const rawKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const isKeyConfigured = Boolean(
+    rawKey &&
+    rawKey !== 'YOUR_GOOGLE_MAPS_API_KEY' &&
+    rawKey !== 'YOUR_GOOGLE_MAPS_API_KEY_HERE' &&
+    rawKey.trim().length > 15
+  );
+
+  // Check if reported location is outdated (older than 5 minutes)
+  const isLocationOutdated = Boolean(
+    lastUpdatedTimestamp &&
+    (Date.now() - new Date(lastUpdatedTimestamp).getTime()) > 5 * 60 * 1000
+  );
 
   // ── 1. Google Maps Script Loader ───────────────────────────────────────────
   useEffect(() => {
-    if (!isKeyConfigured) return;
+    if (!isKeyConfigured) {
+      return;
+    }
 
     if (window.google && window.google.maps) {
       setMapLoaded(true);
@@ -55,17 +71,29 @@ const GoogleMapTracker = ({
     const scriptId = 'google-maps-api-script';
     let script = document.getElementById(scriptId);
 
-    const onScriptLoad = () => setMapLoaded(true);
-    const onScriptError = () => setLoadError('Failed to load Google Maps script. Check network or key permissions.');
+    const onScriptLoad = () => {
+      setMapLoaded(true);
+      setLoadError(null);
+    };
 
+    const onScriptError = (err) => {
+      const msg = 'Failed to load Google Maps script. Check network connectivity and API key restrictions.';
+      console.error('[Google Maps]', msg, err);
+      setLoadError(msg);
+    };
+
+    // Google Maps API Global Authentication Failure Hook
     window.gm_authFailure = () => {
-      setLoadError('Google Maps API Authentication Failed: Verify your API key restrictions and billing in Google Cloud Console.');
+      const authErrMsg =
+        'Google Maps API Authentication Failed. Please verify in Google Cloud Console: 1) Billing is active, 2) Maps JavaScript API is enabled, 3) Allowed HTTP referrer includes http://localhost:5173/*';
+      console.error('[Google Maps Auth Error]', authErrMsg);
+      setLoadError(authErrMsg);
     };
 
     if (!script) {
       script = document.createElement('script');
       script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(rawKey)}&libraries=geometry`;
       script.async = true;
       script.defer = true;
       script.onload = onScriptLoad;
@@ -82,12 +110,13 @@ const GoogleMapTracker = ({
         script.removeEventListener('error', onScriptError);
       }
     };
-  }, [apiKey, isKeyConfigured]);
+  }, [rawKey, isKeyConfigured]);
 
-  // ── 2. Initialize Map ──────────────────────────────────────────────────────
+  // ── 2. Initialize Map & Render Markers/Route ────────────────────────────────
   useEffect(() => {
-    if (!mapLoaded || !mapContainerRef.current || !window.google?.maps) return;
+    if (!mapLoaded || loadError || !mapContainerRef.current || !window.google?.maps) return;
 
+    // Use actual destination coordinates if available, else standard center
     const defaultCenter = {
       lat: destinationLatitude || 17.3850,
       lng: destinationLongitude || 78.4867,
@@ -111,8 +140,8 @@ const GoogleMapTracker = ({
 
     const map = mapInstanceRef.current;
 
-    // Destination Marker
-    if (destinationLatitude && destinationLongitude) {
+    // Destination Marker - appears only when valid coordinates exist
+    if (typeof destinationLatitude === 'number' && typeof destinationLongitude === 'number') {
       const destPos = { lat: destinationLatitude, lng: destinationLongitude };
 
       if (!destMarkerRef.current) {
@@ -131,9 +160,9 @@ const GoogleMapTracker = ({
         });
 
         const destInfo = new window.google.maps.InfoWindow({
-          content: `<div style="font-family:sans-serif;padding:4px">
-            <strong style="color:#0f172a">Delivery Destination</strong><br/>
-            <span style="font-size:12px;color:#64748b">${destinationAddress || 'Customer Address'}</span>
+          content: `<div style="font-family:sans-serif;padding:6px">
+            <strong style="color:#0f172a;font-size:13px">📍 Customer Destination</strong><br/>
+            <span style="font-size:12px;color:#64748b">${destinationAddress || 'Delivery Address'}</span>
           </div>`,
         });
         destMarkerRef.current.addListener('click', () => destInfo.open(map, destMarkerRef.current));
@@ -142,8 +171,8 @@ const GoogleMapTracker = ({
       }
     }
 
-    // Delivery Agent Marker
-    if (agentLatitude && agentLongitude) {
+    // Delivery Agent Marker - appears only when actual real GPS coordinates exist
+    if (typeof agentLatitude === 'number' && typeof agentLongitude === 'number') {
       const agentPos = { lat: agentLatitude, lng: agentLongitude };
 
       if (!agentMarkerRef.current) {
@@ -163,9 +192,10 @@ const GoogleMapTracker = ({
         });
 
         const agentInfo = new window.google.maps.InfoWindow({
-          content: `<div style="font-family:sans-serif;padding:4px">
-            <strong style="color:#ea580c">🚚 ${agentName}</strong><br/>
-            <span style="font-size:12px;color:#64748b">Active Delivery Agent</span>
+          content: `<div style="font-family:sans-serif;padding:6px">
+            <strong style="color:#ea580c;font-size:13px">🛵 ${agentName}</strong><br/>
+            <span style="font-size:12px;color:#64748b">Active GPS Position</span>
+            ${agentAccuracy ? `<br/><span style="font-size:11px;color:#94a3b8">Accuracy: ±${Math.round(agentAccuracy)}m</span>` : ''}
           </div>`,
         });
         agentMarkerRef.current.addListener('click', () => agentInfo.open(map, agentMarkerRef.current));
@@ -174,17 +204,22 @@ const GoogleMapTracker = ({
       }
     }
 
-    // Directions & Route Rendering
-    if (agentLatitude && agentLongitude && destinationLatitude && destinationLongitude) {
+    // Adjust Map Bounds & Driving Route
+    if (
+      typeof agentLatitude === 'number' &&
+      typeof agentLongitude === 'number' &&
+      typeof destinationLatitude === 'number' &&
+      typeof destinationLongitude === 'number'
+    ) {
       const origin = new window.google.maps.LatLng(agentLatitude, agentLongitude);
       const dest = new window.google.maps.LatLng(destinationLatitude, destinationLongitude);
 
       const bounds = new window.google.maps.LatLngBounds();
       bounds.extend(origin);
       bounds.extend(dest);
-      map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+      map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
 
-      // Calculate driving route using DirectionsService
+      // Calculate driving route using Google DirectionsService
       const directionsService = new window.google.maps.DirectionsService();
 
       if (!directionsRendererRef.current) {
@@ -216,21 +251,25 @@ const GoogleMapTracker = ({
               });
             }
           } else {
-            // Fallback: draw straight polyline between agent and customer if directions API is disabled
+            console.warn('[Google DirectionsService]', `Driving directions query status: ${status}.`);
+            // Fallback straight line polyline if Directions API is not enabled on the API key
             if (polylineRef.current) polylineRef.current.setMap(null);
             polylineRef.current = new window.google.maps.Polyline({
               path: [origin, dest],
               geodesic: true,
               strokeColor: '#2563eb',
-              strokeOpacity: 0.7,
+              strokeOpacity: 0.75,
               strokeWeight: 4,
             });
             polylineRef.current.setMap(map);
           }
         }
       );
+    } else if (typeof destinationLatitude === 'number' && typeof destinationLongitude === 'number') {
+      map.setCenter({ lat: destinationLatitude, lng: destinationLongitude });
+      map.setZoom(14);
     }
-  }, [mapLoaded, destinationLatitude, destinationLongitude, agentLatitude, agentLongitude, agentName, destinationAddress]);
+  }, [mapLoaded, loadError, destinationLatitude, destinationLongitude, agentLatitude, agentLongitude, agentName, destinationAddress, agentAccuracy]);
 
   const straightLineDistance = calculateDistanceKm(agentLatitude, agentLongitude, destinationLatitude, destinationLongitude);
 
@@ -264,14 +303,18 @@ const GoogleMapTracker = ({
               Live Delivery Route & Map
             </h4>
             <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-              {isLiveTrackingActive ? (
+              {isLiveTrackingActive && agentLatitude && !isLocationOutdated ? (
                 <span style={{ color: '#16a34a', fontWeight: 700 }}>
                   ● Real-time GPS Tracking Active
+                </span>
+              ) : isLocationOutdated ? (
+                <span style={{ color: '#d97706', fontWeight: 600 }}>
+                  ⚠️ Location may be outdated. Last updated: {new Date(lastUpdatedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
               ) : agentLatitude ? (
                 'Last known location reported'
               ) : (
-                'Awaiting delivery agent dispatch'
+                'Waiting for the delivery agent to share their location.'
               )}
             </span>
           </div>
@@ -315,8 +358,10 @@ const GoogleMapTracker = ({
           ref={mapContainerRef}
           style={{
             width: '100%',
-            height: '420px',
+            height: '440px',
+            minHeight: '380px',
             backgroundColor: '#f1f5f9',
+            position: 'relative',
           }}
         />
       ) : (
@@ -331,56 +376,61 @@ const GoogleMapTracker = ({
           <div
             style={{
               backgroundColor: '#ffffff',
-              borderRadius: '12px',
-              border: '1px solid #e2e8f0',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
+              borderRadius: '14px',
+              border: `1.5px solid ${loadError ? '#fecaca' : '#fed7aa'}`,
+              padding: '1.75rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
               <div
                 style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '10px',
-                  backgroundColor: '#eff6ff',
-                  color: '#2563eb',
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '12px',
+                  backgroundColor: loadError ? '#fef2f2' : '#fff7ed',
+                  color: loadError ? '#dc2626' : '#ea580c',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '1.4rem',
+                  fontSize: '1.5rem',
                   flexShrink: 0,
+                  border: `1.5px solid ${loadError ? '#fecaca' : '#fed7aa'}`,
                 }}
               >
-                📍
+                {loadError ? '⚠️' : '📍'}
               </div>
               <div style={{ flex: 1 }}>
-                <h4 style={{ margin: '0 0 0.35rem', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
-                  Google Maps API Configuration
+                <h4 style={{ margin: '0 0 0.4rem', fontSize: '1.1rem', fontWeight: 800, color: loadError ? '#b91c1c' : '#0f172a' }}>
+                  {loadError ? 'Google Maps Configuration Error' : 'Google Maps API key is not configured.'}
                 </h4>
-                <p style={{ margin: '0 0 0.75rem', fontSize: '0.88rem', color: '#475569', lineHeight: 1.5 }}>
+                <p style={{ margin: '0 0 0.85rem', fontSize: '0.9rem', color: '#475569', lineHeight: 1.55 }}>
                   {loadError
                     ? loadError
-                    : 'To view live interactive vector maps and turn-by-turn driving routes on this screen, provide your Google Maps JavaScript API Key.'}
+                    : 'Interactive Google Maps delivery tracking requires a Google Maps JavaScript API key. To view live vector maps and driving directions on this screen, add your key to frontend/.env.local.'}
                 </p>
 
                 <div
                   style={{
                     backgroundColor: '#f1f5f9',
                     borderRadius: '8px',
-                    padding: '0.75rem 1rem',
-                    fontSize: '0.82rem',
+                    padding: '0.85rem 1rem',
+                    fontSize: '0.84rem',
                     fontFamily: 'monospace',
                     color: '#334155',
-                    marginBottom: '0.75rem',
+                    marginBottom: '0.85rem',
+                    border: '1px solid #e2e8f0',
                   }}
                 >
                   # In frontend/.env.local:<br />
-                  VITE_GOOGLE_MAPS_API_KEY=AIzaSy...
+                  VITE_GOOGLE_MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY
                 </div>
 
-                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                  <strong>Required Google Cloud APIs:</strong> Maps JavaScript API • Directions API • Geocoding API
+                <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: 1.5 }}>
+                  <strong>Required Google Cloud Setup:</strong><br />
+                  1. Enable <strong>Maps JavaScript API</strong> & <strong>Directions API</strong> in Google Cloud Console.<br />
+                  2. Add HTTP Referrer restrictions for local development: <code>http://localhost:5173/*</code>.<br />
+                  3. Restart the Vite development server after adding your key to <code>.env.local</code>.
                 </div>
               </div>
             </div>
@@ -391,23 +441,24 @@ const GoogleMapTracker = ({
       {/* Real Coordinates & Telemetry Monitor Strip */}
       <div
         style={{
-          padding: '1rem 1.25rem',
+          padding: '1.25rem',
           backgroundColor: '#ffffff',
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
+          gap: '1.25rem',
           fontSize: '0.85rem',
+          borderTop: '1px solid #f1f5f9',
         }}
       >
         {/* Customer Location */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <span style={{ fontSize: '1.4rem', color: '#2563eb' }}>🏠</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ fontSize: '1.5rem', color: '#2563eb' }}>🏠</span>
           <div>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block' }}>
+            <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 700, display: 'block' }}>
               CUSTOMER DESTINATION
             </span>
-            <strong style={{ color: '#0f172a' }}>
-              {destinationLatitude && destinationLongitude
+            <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>
+              {typeof destinationLatitude === 'number' && typeof destinationLongitude === 'number'
                 ? `${destinationLatitude.toFixed(4)}° N, ${destinationLongitude.toFixed(4)}° E`
                 : 'Address Registered'}
             </strong>
@@ -415,28 +466,28 @@ const GoogleMapTracker = ({
         </div>
 
         {/* Agent Location */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <span style={{ fontSize: '1.4rem', color: '#ea580c' }}>🚚</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ fontSize: '1.5rem', color: '#ea580c' }}>🛵</span>
           <div>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block' }}>
+            <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 700, display: 'block' }}>
               DELIVERY AGENT (LATEST GPS)
             </span>
-            <strong style={{ color: agentLatitude ? '#0f172a' : '#94a3b8' }}>
-              {agentLatitude && agentLongitude
+            <strong style={{ color: agentLatitude ? '#0f172a' : '#94a3b8', fontSize: '0.92rem' }}>
+              {typeof agentLatitude === 'number' && typeof agentLongitude === 'number'
                 ? `${agentLatitude.toFixed(4)}° N, ${agentLongitude.toFixed(4)}° E`
-                : 'Not Yet Reported'}
+                : 'Waiting for the delivery agent to share their location.'}
             </strong>
           </div>
         </div>
 
         {/* Route / Distance */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <span style={{ fontSize: '1.4rem', color: '#16a34a' }}>📏</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ fontSize: '1.5rem', color: '#16a34a' }}>📏</span>
           <div>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, display: 'block' }}>
+            <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 700, display: 'block' }}>
               DISTANCE TO DESTINATION
             </span>
-            <strong style={{ color: '#16a34a' }}>
+            <strong style={{ color: '#16a34a', fontSize: '0.92rem' }}>
               {routeInfo
                 ? `${routeInfo.distance} (Est. ${routeInfo.duration})`
                 : straightLineDistance

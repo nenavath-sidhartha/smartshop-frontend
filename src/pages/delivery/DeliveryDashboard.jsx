@@ -6,7 +6,7 @@ import Loading from '../../components/Loading';
 import Toast from '../../components/Toast';
 
 const DeliveryDashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
 
   const [assignments, setAssignments] = useState([]);
@@ -24,10 +24,12 @@ const DeliveryDashboard = () => {
 
   // Role Guard
   useEffect(() => {
-    if (user && user.role !== 'ROLE_DELIVERY_AGENT' && user.role !== 'ROLE_ADMIN') {
-      navigate('/delivery/login');
+    if (!authLoading) {
+      if (!user || (user.role !== 'ROLE_DELIVERY_AGENT' && user.role !== 'ROLE_ADMIN')) {
+        navigate('/delivery/login');
+      }
     }
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   const fetchAssignedOrders = useCallback(async () => {
     if (!user) return;

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import authService from '../../services/authService';
 
 const DeliveryLoginPage = () => {
   const [email, setEmail] = useState('agent@smartshop.com');
@@ -9,7 +8,7 @@ const DeliveryLoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const { login: setAuthUser } = useAuth();
+  const { login, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -18,18 +17,27 @@ const DeliveryLoginPage = () => {
     setError(null);
 
     try {
-      const res = await authService.login({ email, password });
-      if (res.data && res.data.user) {
-        const user = res.data.user;
-        if (user.role !== 'ROLE_DELIVERY_AGENT' && user.role !== 'ROLE_ADMIN') {
-          setError('Access Denied: This portal is strictly reserved for SmartShop Delivery Agents.');
-          return;
-        }
-        setAuthUser(user, res.data.token);
-        navigate('/delivery/dashboard');
+      const res = await login(email, password);
+      const authData = res && res.data ? res.data : res;
+      const user = authData && authData.user ? authData.user : null;
+
+      if (!user) {
+        throw new Error('Authentication succeeded but user profile was not returned.');
       }
+
+      if (user.role !== 'ROLE_DELIVERY_AGENT' && user.role !== 'ROLE_ADMIN') {
+        logout();
+        setError('Access Denied: This portal is strictly reserved for SmartShop Delivery Agents.');
+        return;
+      }
+
+      navigate('/delivery/dashboard');
     } catch (err) {
-      setError(err.message || 'Invalid credentials. Please verify your email and password.');
+      if (err.message && err.message.toLowerCase().includes('connect')) {
+        setError('Connection error: Unable to reach the SmartShop backend server. Please verify the backend is online.');
+      } else {
+        setError(err.message || 'Invalid credentials. Please verify your email and password.');
+      }
     } finally {
       setLoading(false);
     }

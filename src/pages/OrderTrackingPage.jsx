@@ -49,12 +49,27 @@ const OrderTrackingPage = () => {
     fetchTrackingData(false);
   }, [fetchTrackingData]);
 
-  // Setup auto-polling every 12 seconds when out for delivery
+  // Setup auto-polling every 8 seconds when out for delivery
   useEffect(() => {
     if (tracking && tracking.orderStatus === 'OUT_FOR_DELIVERY') {
-      pollIntervalRef.current = setInterval(() => {
-        fetchTrackingData(true);
-      }, 12000);
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const locRes = await orderService.getLatestTrackingLocation(orderId, user?.email);
+          if (locRes && locRes.data) {
+            setTracking((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                latestLocation: locRes.data,
+                lastUpdatedTimestamp: locRes.data.recordedAt || new Date().toISOString(),
+                isLiveTrackingActive: true,
+              };
+            });
+          }
+        } catch {
+          fetchTrackingData(true);
+        }
+      }, 8000);
     } else {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     }
@@ -62,7 +77,7 @@ const OrderTrackingPage = () => {
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [tracking?.orderStatus, fetchTrackingData]);
+  }, [tracking?.orderStatus, orderId, user?.email, fetchTrackingData]);
 
   if (loading) {
     return (

@@ -15,6 +15,14 @@ export const userService = {
 
   toggleUserStatus: async (userId) => {
     return await api.put(`/api/users/${userId}/status`);
+  },
+
+  updateUserRole: async (userId, role) => {
+    return await api.put(`/api/users/${userId}/role`, { role });
+  },
+
+  createDeliveryAgent: async (agentData) => {
+    return await api.post('/api/users/delivery-agent', agentData);
   }
 };
 

@@ -7,7 +7,7 @@ import Toast from '../../components/Toast';
 
 const DeliveryOrderDetailPage = () => {
   const { orderId } = useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [assignment, setAssignment] = useState(null);
@@ -21,6 +21,15 @@ const DeliveryOrderDetailPage = () => {
 
   const showToast = (message, type = 'success') => setToast({ message, type });
   const hideToast = () => setToast({ message: '', type: 'success' });
+
+  // Role Guard
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user || (user.role !== 'ROLE_DELIVERY_AGENT' && user.role !== 'ROLE_ADMIN')) {
+        navigate('/delivery/login');
+      }
+    }
+  }, [user, authLoading, navigate]);
 
   const fetchDetails = useCallback(async () => {
     if (!orderId || !user) return;

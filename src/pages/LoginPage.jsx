@@ -30,6 +30,8 @@ const LoginPage = () => {
         const role = user.role;
         if (role === 'ROLE_ADMIN') {
           navigate('/admin');
+        } else if (role === 'ROLE_DELIVERY_AGENT') {
+          navigate('/delivery/dashboard');
         } else {
           navigate('/');
         }
@@ -127,6 +129,14 @@ const LoginPage = () => {
           <p style={{ margin: '0.25rem 0', color: '#64748b' }}>
             <strong>Admin:</strong> admin@smartshop.com / admin123
           </p>
+          <p style={{ margin: '0.25rem 0', color: '#64748b' }}>
+            <strong>Delivery Partner:</strong> agent@smartshop.com / agent123
+          </p>
+          <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0' }}>
+            <Link to="/delivery/login" style={{ color: '#ea580c', fontWeight: 700, textDecoration: 'none', fontSize: '0.82rem' }}>
+              🛵 Delivery Partner Login Portal →
+            </Link>
+          </div>
         </div>
 
         <div style={{ textAlign: 'center', marginTop: '1.75rem', fontSize: '0.9rem', color: '#64748b' }}>
