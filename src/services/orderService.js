@@ -37,6 +37,41 @@ export const orderService = {
 
   getAdminStats: async () => {
     return await api.get('/api/orders/admin/stats');
+  },
+
+  // ─── REORDER & RECENT PURCHASES ──────────────────────────────────────────
+
+  getMyRecentOrders: async (limit = 5, email) => {
+    const params = { limit };
+    if (email) params.email = email;
+    return await api.get('/api/orders/my/recent', { params });
+  },
+
+  getMyRecentPurchasedProducts: async (email) => {
+    const params = email ? { email } : {};
+    return await api.get('/api/orders/my/recent-products', { params });
+  },
+
+  getReorderSummary: async (orderId, email) => {
+    const params = email ? { email } : {};
+    return await api.get(`/api/orders/${orderId}/reorder-summary`, { params });
+  },
+
+  reorder: async (orderId, requestData = {}, email) => {
+    const params = email ? { email } : {};
+    return await api.post(`/api/orders/${orderId}/reorder`, requestData, { params });
+  },
+
+  // ─── DELIVERY TRACKING ───────────────────────────────────────────────────
+
+  getOrderTracking: async (orderId, email) => {
+    const params = email ? { email } : {};
+    return await api.get(`/api/orders/${orderId}/tracking`, { params });
+  },
+
+  getLatestTrackingLocation: async (orderId, email) => {
+    const params = email ? { email } : {};
+    return await api.get(`/api/orders/${orderId}/tracking/location`, { params });
   }
 };
 

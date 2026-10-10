@@ -55,6 +55,21 @@ const Navbar = () => {
             My Orders
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/profile?tab=RECENT_PURCHASES" className={({ isActive }) => (location.search.includes('RECENT_PURCHASES') ? 'nav-link active' : 'nav-link')}>
+            🔄 Buy Again
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/profile?tab=TRACK_ORDER" className={({ isActive }) => (location.search.includes('TRACK_ORDER') ? 'nav-link active' : 'nav-link')}>
+            📍 Track Order
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/delivery/login" className={({ isActive }) => navLinkClass(isActive)} style={{ color: '#ea580c', fontWeight: 700 }}>
+            🛵 Driver Portal
+          </NavLink>
+        </li>
       </ul>
     </nav>
   );

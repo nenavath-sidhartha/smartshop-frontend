@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import orderService from '../services/orderService';
 import OrderCard from '../components/OrderCard';
+import ReorderModal from '../components/ReorderModal';
 import Loading from '../components/Loading';
 import Modal from '../components/Modal';
 import CancelOrderModal from '../components/CancelOrderModal';
@@ -9,9 +11,13 @@ import Toast from '../components/Toast';
 
 const MyOrdersPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('ALL');
   const [loading, setLoading] = useState(true);
+
+  // Reorder modal
+  const [reorderOrderId, setReorderOrderId] = useState(null);
 
   // View Details modal
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -148,6 +154,8 @@ const MyOrdersPage = () => {
               order={order}
               onViewDetails={(ord) => setSelectedOrder(ord)}
               onCancelOrder={handleCancelOrder}
+              onReorder={(ord) => setReorderOrderId(ord.id)}
+              onTrackOrder={(ord) => navigate(`/orders/${ord.id}/track`)}
             />
           ))}
         </div>
@@ -246,9 +254,44 @@ const MyOrdersPage = () => {
                 </p>
               </div>
             )}
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.25rem' }}>
+              {selectedOrder.orderStatus !== 'CANCELLED' && (
+                <button
+                  onClick={() => {
+                    const id = selectedOrder.id;
+                    setSelectedOrder(null);
+                    navigate(`/orders/${id}/track`);
+                  }}
+                  className="btn-primary"
+                  style={{ flex: 1, padding: '0.55rem' }}
+                >
+                  📍 Track on Map
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  const id = selectedOrder.id;
+                  setSelectedOrder(null);
+                  setReorderOrderId(id);
+                }}
+                className="btn-outline"
+                style={{ flex: 1, padding: '0.55rem' }}
+              >
+                🔄 Reorder Items
+              </button>
+            </div>
           </div>
         )}
       </Modal>
+
+      {/* ── Reorder Modal ── */}
+      <ReorderModal
+        isOpen={!!reorderOrderId}
+        orderId={reorderOrderId}
+        onClose={() => setReorderOrderId(null)}
+        onToast={showToast}
+      />
 
       {/* ── Cancel Order Modal ── */}
       <CancelOrderModal

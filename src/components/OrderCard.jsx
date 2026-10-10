@@ -3,7 +3,7 @@ import React from 'react';
 // Statuses that allow customer-initiated cancellation
 const CANCELLABLE_STATUSES = ['PLACED', 'CONFIRMED', 'PROCESSING'];
 
-const OrderCard = ({ order, onViewDetails, onCancelOrder }) => {
+const OrderCard = ({ order, onViewDetails, onCancelOrder, onReorder, onTrackOrder }) => {
   const { orderNumber, createdAt, orderStatus, totalAmount, items, paymentMethod } = order;
 
   const getStatusBadge = (status) => {
@@ -12,8 +12,8 @@ const OrderCard = ({ order, onViewDetails, onCancelOrder }) => {
       case 'CONFIRMED':   return <span className="badge badge-confirmed">Confirmed</span>;
       case 'PROCESSING':  return <span className="badge badge-processing">Processing</span>;
       case 'SHIPPED':     return <span className="badge badge-shipped">Shipped</span>;
-      case 'OUT_FOR_DELIVERY': return <span className="badge badge-shipped">Out for Delivery</span>;
-      case 'DELIVERED':   return <span className="badge badge-delivered">Delivered</span>;
+      case 'OUT_FOR_DELIVERY': return <span className="badge" style={{ backgroundColor: '#ffedd5', color: '#c2410c', fontWeight: 700 }}>Out for Delivery 🚚</span>;
+      case 'DELIVERED':   return <span className="badge badge-delivered">Delivered ✓</span>;
       case 'CANCELLED':   return <span className="badge badge-cancelled">Cancelled</span>;
       default:            return <span className="badge">{status}</span>;
     }
@@ -87,24 +87,60 @@ const OrderCard = ({ order, onViewDetails, onCancelOrder }) => {
           <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>Total: ₹{totalAmount ? totalAmount.toLocaleString('en-IN') : 0}</span>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {onViewDetails && (
             <button
               onClick={() => onViewDetails(order)}
               className="btn-outline"
-              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem' }}
             >
               View Details
             </button>
           )}
+
+          {/* Track Order button */}
+          {orderStatus !== 'CANCELLED' && onTrackOrder && (
+            <button
+              onClick={() => onTrackOrder(order)}
+              style={{
+                padding: '0.45rem 0.85rem',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                borderRadius: '8px',
+                border: '1.5px solid #0284c7',
+                backgroundColor: '#f0f9ff',
+                color: '#0284c7',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                transition: 'all 0.18s ease'
+              }}
+            >
+              📍 Track Order
+            </button>
+          )}
+
+          {/* Reorder button */}
+          {onReorder && (
+            <button
+              onClick={() => onReorder(order)}
+              className="btn-primary"
+              style={{ padding: '0.45rem 0.9rem', fontSize: '0.82rem' }}
+            >
+              🔄 Reorder
+            </button>
+          )}
+
+          {/* Cancel button */}
           {isCancellable && onCancelOrder && (
             <button
               onClick={() => onCancelOrder(order)}
               style={{
-                padding: '0.5rem 1rem',
-                fontSize: '0.85rem',
+                padding: '0.45rem 0.85rem',
+                fontSize: '0.82rem',
                 fontWeight: 700,
-                borderRadius: '10px',
+                borderRadius: '8px',
                 border: '1.5px solid #ef4444',
                 backgroundColor: 'transparent',
                 color: '#ef4444',

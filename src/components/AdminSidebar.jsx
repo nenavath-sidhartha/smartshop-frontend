@@ -32,6 +32,11 @@ const AdminSidebar = ({ onLogout }) => {
           </NavLink>
         </li>
         <li className="admin-menu-item">
+          <NavLink to="/admin/deliveries" className={({ isActive }) => (isActive ? 'active' : '')}>
+            🛵 Delivery Fleet
+          </NavLink>
+        </li>
+        <li className="admin-menu-item">
           <NavLink to="/admin/users" className={({ isActive }) => (isActive ? 'active' : '')}>
             👥 Manage Users
           </NavLink>
